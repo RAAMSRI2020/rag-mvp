@@ -11,34 +11,44 @@ def normalize(text: str) -> list[str]:
 def lexical_overlap_score(query: str, text: str) -> float:
     q_tokens = set(normalize(query))
     t_tokens = set(normalize(text))
-
     if not q_tokens or not t_tokens:
         return 0.0
-
-    overlap = q_tokens.intersection(t_tokens)
-    return len(overlap) / len(q_tokens)
-
-
-def rewrite_query_if_needed(query: str) -> str:
-    q = query.strip().lower()
-
-    personal_queries = {
-        "tell about me",
-        "tell me about me",
-        "what do you know about me",
-        "who am i",
-        "describe me",
-    }
-
-    if q in personal_queries:
-        return "user background goals preferences learning style skills recurring personal context"
-
-    return query
+    return len(q_tokens.intersection(t_tokens)) / len(q_tokens)
 
 
 def is_small_talk(query: str) -> bool:
     q = query.strip().lower()
     return q in {"hi", "hello", "hey", "yo", "hii", "hey there", "hello there"}
+
+
+def is_profile_query(query: str) -> bool:
+    q = query.strip().lower()
+
+    strong_patterns = [
+        "tell about me",
+        "tell me about me",
+        "what do you know about me",
+        "who am i",
+        "describe me",
+        "summarize me",
+        "say about me",
+    ]
+
+    if any(p in q for p in strong_patterns):
+        return True
+
+    has_me = " me" in f" {q} " or "about me" in q
+    has_profile_intent = any(word in q for word in [
+        "tell", "describe", "summarize", "say", "infer", "know"
+    ])
+
+    return has_me and has_profile_intent
+
+
+def rewrite_query_if_needed(query: str) -> str:
+    if is_profile_query(query):
+        return "user background goals interests preferences learning style working style recurring concerns"
+    return query
 
 
 def retrieve_top_k(query: str, k: int = TOP_K) -> list[dict]:
@@ -72,4 +82,24 @@ def retrieve_top_k(query: str, k: int = TOP_K) -> list[dict]:
         reranked.append(doc)
 
     reranked.sort(key=lambda d: d["hybrid_score"], reverse=True)
+
+    if is_profile_query(query):
+        diversified = []
+        used_sessions = set()
+
+        for doc in reranked:
+            if doc["session_id"] not in used_sessions:
+                diversified.append(doc)
+                used_sessions.add(doc["session_id"])
+            if len(diversified) >= 5:
+                break
+
+        for doc in reranked:
+            if doc not in diversified:
+                diversified.append(doc)
+            if len(diversified) >= 6:
+                break
+
+        return diversified
+
     return reranked[:k]

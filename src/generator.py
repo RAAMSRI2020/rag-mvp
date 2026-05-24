@@ -2,23 +2,14 @@ from typing import List, Dict
 import re
 
 
-def build_context(docs: List[Dict]) -> str:
-    return "\n\n".join(
-        f"[Session: {doc['session_id']} | Turns: {doc['turn_start']}-{doc['turn_end']}]\n{doc['text']}"
-        for doc in docs
-    )
+def clean_text(text: str) -> str:
+    text = text.replace("User:", "").replace("Assistant:", "").strip()
+    text = re.sub(r"\n{2,}", "\n", text)
+    return text
 
 
-def is_personal_query(query: str) -> bool:
-    q = query.strip().lower()
-    triggers = [
-        "tell about me",
-        "tell me about me",
-        "what do you know about me",
-        "who am i",
-        "describe me",
-    ]
-    return any(t in q for t in triggers)
+def split_lines(text: str):
+    return [line.strip(" -•\t") for line in text.splitlines() if line.strip()]
 
 
 def is_small_talk(query: str) -> bool:
@@ -26,28 +17,98 @@ def is_small_talk(query: str) -> bool:
     return q in {"hi", "hello", "hey", "yo", "hii", "hey there", "hello there"}
 
 
+def is_profile_query(query: str) -> bool:
+    q = query.strip().lower()
+
+    strong_patterns = [
+        "tell about me",
+        "tell me about me",
+        "what do you know about me",
+        "who am i",
+        "describe me",
+        "summarize me",
+        "say about me",
+    ]
+
+    if any(p in q for p in strong_patterns):
+        return True
+
+    # broader pattern handling
+    has_me = " me" in f" {q} " or "about me" in q
+    has_profile_intent = any(word in q for word in [
+        "tell", "describe", "summarize", "say", "infer", "know"
+    ])
+
+    return has_me and has_profile_intent
+
+
 def classify_result_quality(docs: List[Dict]) -> str:
     if not docs:
         return "none"
 
     best_score = docs[0].get("hybrid_score", docs[0]["score"])
-
     if best_score >= 0.45:
         return "strong"
     elif best_score >= 0.30:
         return "usable"
-    else:
-        return "weak"
+    return "weak"
 
 
-def clean_text(text: str) -> str:
-    text = text.replace("User:", "").replace("Assistant:", "").strip()
-    text = re.sub(r"\n{2,}", "\n", text)
-    return text
+def generate_profile_answer(docs: List[Dict]) -> str:
+    session_names = sorted({doc["session_id"] for doc in docs})
+    combined = "\n".join(clean_text(doc["text"]) for doc in docs).lower()
 
+    observations = []
 
-def split_lines(text: str) -> List[str]:
-    return [line.strip(" -•\t") for line in text.splitlines() if line.strip()]
+    if any(x in combined for x in [
+        "exam", "revision", "lecture", "pca", "svm", "machine learning",
+        "zustand", "react", "hpc", "mapreduce", "spark", "cloud"
+    ]):
+        observations.append(
+            "You seem to be working across technical and academic topics, especially computing, software, and exam-related study material."
+        )
+
+    if any(x in combined for x in [
+        "shortcut", "formula", "memorise", "memory", "template", "step", "base formula", "modifier"
+    ]):
+        observations.append(
+            "You prefer practical learning methods such as shortcuts, formulas, templates, and step-by-step guidance."
+        )
+
+    if any(x in combined for x in [
+        "exam", "asap", "need", "must", "target", "plan"
+    ]):
+        observations.append(
+            "Your questions are usually goal-driven, meaning you ask for help to solve something quickly, prepare effectively, or improve performance."
+        )
+
+    if any(x in combined for x in [
+        "burger", "gmail", "react", "machine learning", "cloud", "mapreduce"
+    ]):
+        observations.append(
+            "You work across both academic/technical topics and practical real-world tasks, rather than focusing on only one domain."
+        )
+
+    if any(x in combined for x in [
+        "shortcut", "must remember", "revision", "summary", "key things", "fastest way"
+    ]):
+        observations.append(
+            "You seem to value concise, usable help more than long theoretical explanations."
+        )
+
+    if not observations:
+        observations.append(
+            "The indexed sessions suggest some recurring interests and tasks, but the current evidence is not strong enough to form a detailed profile."
+        )
+
+    bullets = "\n".join(f"- {item}" for item in observations[:5])
+    sessions = ", ".join(session_names[:6])
+
+    return (
+        "From the indexed sessions, here is what I can reasonably infer about you:\n\n"
+        f"{bullets}\n\n"
+        f"These observations are based on patterns retrieved across these sessions: {sessions}."
+    )
 
 
 def extract_headings_and_topics(text: str) -> Dict[str, List[str]]:
@@ -83,21 +144,6 @@ def answer_topic_list_query(docs: List[Dict]) -> str:
         return "\n".join(parts).strip()
 
     return "I found relevant content, but I could not structure it cleanly into topic groups."
-
-
-def answer_personal_query(docs: List[Dict]) -> str:
-    session_names = ", ".join(sorted({doc["session_id"] for doc in docs}))
-    bullets = []
-
-    for doc in docs:
-        cleaned = clean_text(doc["text"])
-        bullets.append(f"- From **{doc['session_id']}**: {cleaned[:280]}...")
-
-    return (
-        "From the indexed sessions, I can infer a few things based on the retrieved context:\n\n"
-        + "\n".join(bullets[:3])
-        + f"\n\nThese observations are based on context retrieved from: {session_names}."
-    )
 
 
 def answer_burger_query(docs: List[Dict]) -> str:
@@ -145,7 +191,7 @@ def answer_burger_query(docs: List[Dict]) -> str:
     return "\n".join(parts).strip()
 
 
-def answer_general_query(query: str, docs: List[Dict], quality: str) -> str:
+def generate_general_answer(query: str, docs: List[Dict], quality: str) -> str:
     top_doc = docs[0]
     cleaned = clean_text(top_doc["text"])
     lines = split_lines(cleaned)
@@ -192,8 +238,8 @@ def generate_answer(query: str, docs: List[Dict]) -> str:
 
     q = query.strip().lower()
 
-    if is_personal_query(query):
-        return answer_personal_query(docs)
+    if is_profile_query(query):
+        return generate_profile_answer(docs)
 
     if any(phrase in q for phrase in [
         "what are all the topics",
@@ -207,4 +253,4 @@ def generate_answer(query: str, docs: List[Dict]) -> str:
     if any(word in q for word in ["burger", "burgers", "sandwich", "dealt with"]):
         return answer_burger_query(docs)
 
-    return answer_general_query(query, docs, quality)
+    return generate_general_answer(query, docs, quality)
