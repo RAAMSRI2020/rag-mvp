@@ -4,6 +4,7 @@ import fitz  # PyMuPDF
 def extract_pdf_blocks(pdf_path: str) -> list[dict]:
     """
     Extract text blocks with coordinates from a PDF.
+    Useful for chat-export PDFs where horizontal alignment matters.
     """
     doc = fitz.open(pdf_path)
     blocks_data = []
@@ -12,6 +13,7 @@ def extract_pdf_blocks(pdf_path: str) -> list[dict]:
         blocks = page.get_text("blocks")
         for block in blocks:
             x0, y0, x1, y1, text, block_no, block_type = block
+
             cleaned = text.strip()
             if cleaned:
                 blocks_data.append({

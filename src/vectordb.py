@@ -49,7 +49,7 @@ def upsert_snippets(
 
     for snippet, embedding in zip(snippets, embeddings):
         point = PointStruct(
-            id=hash(f"{session_id}-{snippet['turn_start']}-{snippet['turn_end']}-{source_pdf}") & 0x7FFFFFFF,
+            id=hash(f"{session_id}-{snippet['turn_start']}-{snippet['turn_end']}-{source_pdf}-{snippet['text'][:100]}") & 0x7FFFFFFF,
             vector=embedding,
             payload={
                 "session_id": session_id,
@@ -65,7 +65,7 @@ def upsert_snippets(
         client.upsert(collection_name=COLLECTION_NAME, points=points)
 
 
-def search_similar(query_vector: list[float], limit: int = 3) -> list[dict]:
+def search_similar(query_vector: list[float], limit: int = 10) -> list[dict]:
     client = get_client()
 
     results = client.query_points(

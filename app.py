@@ -8,134 +8,117 @@ from src.generator import generate_answer
 from src.vectordb import close_client
 
 st.set_page_config(page_title="Multi-Session Conversational RAG", layout="wide")
-
 st.title("Multi-Session Conversational RAG Module")
-st.markdown(
-    """
-This prototype ingests conversation PDFs across multiple sessions, indexes them into a vector database,
-retrieves the top 3 most relevant snippets for a new query, and uses them as grounded context for answering.
-"""
+st.caption(
+    "Upload conversation PDFs, index them as searchable snippets, and answer new questions using retrieved cross-session context."
 )
 
-# -------------------------
-# Session state
-# -------------------------
 if "ingestion_results" not in st.session_state:
     st.session_state.ingestion_results = []
-
 if "ingestion_summary" not in st.session_state:
     st.session_state.ingestion_summary = None
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-
-# -------------------------
-# Sidebar: Upload + indexing
-# -------------------------
-st.sidebar.header("Session Upload & Indexing")
-
+# Sidebar
+st.sidebar.header("Upload & Index Sessions")
 uploaded_files = st.sidebar.file_uploader(
-    "Upload conversation PDF files",
+    "Upload conversation PDFs",
     type=["pdf"],
     accept_multiple_files=True
 )
 
-index_clicked = st.sidebar.button("Index Sessions")
-
-if index_clicked:
+if st.sidebar.button("Index Sessions", use_container_width=True):
     if not uploaded_files:
-        st.sidebar.warning("Please upload at least one PDF file.")
+        st.sidebar.warning("Upload at least one PDF.")
     else:
         results = []
+        progress = st.sidebar.progress(0, text="Starting indexing...")
 
-        with st.spinner("Processing and indexing uploaded sessions..."):
-            for uploaded_file in uploaded_files:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(uploaded_file.read())
-                    tmp_path = tmp_file.name
+        for i, uploaded_file in enumerate(uploaded_files, start=1):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                tmp_path = tmp_file.name
 
-                result = process_pdf_file(
-                    file_path=tmp_path,
-                    original_name=uploaded_file.name
-                )
-                results.append(result)
+            result = process_pdf_file(tmp_path, uploaded_file.name)
+            results.append(result)
 
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+            progress.progress(i / len(uploaded_files), text=f"Processed {i}/{len(uploaded_files)} files")
 
         st.session_state.ingestion_results = results
         st.session_state.ingestion_summary = summarize_ingestion(results)
-
         close_client()
+        st.sidebar.success("Indexing complete.")
 
+tab1, tab2 = st.tabs(["Ingestion Overview", "Ask the Sessions"])
 
-# -------------------------
-# Main area: Ingestion summary
-# -------------------------
-st.subheader("1. Ingestion Pipeline Status")
+with tab1:
+    st.subheader("Indexed Session Status")
 
-if st.session_state.ingestion_summary:
-    summary = st.session_state.ingestion_summary
+    if st.session_state.ingestion_summary:
+        summary = st.session_state.ingestion_summary
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Files Uploaded", summary["total_files"])
+        c2.metric("Indexed", summary["success_count"])
+        c3.metric("Turns Parsed", summary["total_turns"])
+        c4.metric("Snippets Stored", summary["total_snippets"])
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Files Uploaded", summary["total_files"])
-    col2.metric("Indexed Successfully", summary["success_count"])
-    col3.metric("Total Turns Parsed", summary["total_turns"])
-    col4.metric("Total Snippets Created", summary["total_snippets"])
+        st.markdown("### Per-file Results")
+        for result in st.session_state.ingestion_results:
+            icon = "✅" if result["status"] == "success" else "❌"
+            with st.expander(f"{icon} {result['file_name']}"):
+                st.write(f"**Session ID:** {result['session_id']}")
+                st.write(f"**Blocks Extracted:** {result['blocks_extracted']}")
+                st.write(f"**Turns Parsed:** {result['turns_parsed']}")
+                st.write(f"**Raw Snippets:** {result.get('raw_snippets_created', result['snippets_created'])}")
+                st.write(f"**Stored Snippets:** {result['snippets_created']}")
+                st.write(f"**Stored in Vector DB:** {result['stored']}")
+                if result["reason"]:
+                    st.write(f"**Reason:** {result['reason']}")
+    else:
+        st.info("Upload and index PDF sessions from the sidebar.")
 
-    st.markdown("### Per-file Processing Results")
+with tab2:
+    st.subheader("Query the Indexed Sessions")
 
-    for result in st.session_state.ingestion_results:
-        status_icon = "✅" if result["status"] == "success" else "❌"
-        with st.expander(f"{status_icon} {result['file_name']} — {result['status'].upper()}"):
-            st.write(f"**Session ID:** {result['session_id']}")
-            st.write(f"**Blocks Extracted:** {result['blocks_extracted']}")
-            st.write(f"**Turns Parsed:** {result['turns_parsed']}")
-            st.write(f"**Snippets Created:** {result['snippets_created']}")
-            st.write(f"**Stored in Vector DB:** {result['stored']}")
-            if result["reason"]:
-                st.write(f"**Reason:** {result['reason']}")
-else:
-    st.info("No sessions indexed yet. Upload PDFs from the sidebar and click 'Index Sessions'.")
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
+    query = st.chat_input("Ask a specific question about the indexed conversations")
 
-# -------------------------
-# Query section
-# -------------------------
-st.subheader("2. Query the Indexed Sessions")
+    if query:
+        st.session_state.messages.append({"role": "user", "content": query})
+        with st.chat_message("user"):
+            st.markdown(query)
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        docs = retrieve_top_k(query, k=3)
+        answer = generate_answer(query, docs)
 
-query = st.chat_input("Ask something about the indexed sessions")
+        with st.chat_message("assistant"):
+            st.success("Answer generated from retrieved session context")
+            st.markdown("### Final Answer")
+            st.markdown(answer)
 
-if query:
-    st.session_state.messages.append({"role": "user", "content": query})
-
-    with st.chat_message("user"):
-        st.markdown(query)
-
-    docs = retrieve_top_k(query, k=3)
-    answer = generate_answer(query, docs)
-
-    with st.chat_message("assistant"):
-        st.markdown("### Final Answer")
-        st.markdown(answer)
-
-        with st.expander("Retrieved Evidence (Top 3 Snippets)", expanded=True):
             if docs:
+                st.markdown("### Supporting Evidence")
                 for i, doc in enumerate(docs, start=1):
-                    st.markdown(
-                        f"**{i}. Session:** {doc['session_id']} | "
-                        f"**Turns:** {doc['turn_start']}-{doc['turn_end']} | "
-                        f"**Score:** {doc['score']:.4f}"
-                    )
-                    st.code(doc["text"])
+                    with st.expander(
+                        f"#{i} | {doc['session_id']} | Hybrid {doc.get('hybrid_score', doc['score']):.4f}",
+                        expanded=(i == 1)
+                    ):
+                        st.write(f"**Turns:** {doc['turn_start']}–{doc['turn_end']}")
+                        st.write(f"**Dense score:** {doc['score']:.4f}")
+                        if "lexical_score" in doc:
+                            st.write(f"**Lexical score:** {doc['lexical_score']:.4f}")
+                            st.write(f"**Hybrid score:** {doc['hybrid_score']:.4f}")
+                        st.code(doc["text"])
             else:
-                st.warning("No relevant snippets were retrieved.")
+                st.info("No supporting snippets were retrieved for this query.")
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+        st.session_state.messages.append({"role": "assistant", "content": answer})

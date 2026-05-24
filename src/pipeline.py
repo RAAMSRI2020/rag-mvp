@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List, Dict
 
 from config import WINDOW_SIZE, OVERLAP
@@ -9,10 +10,40 @@ from src.embedder import embed_texts
 from src.vectordb import ensure_collection, upsert_snippets
 
 
+def is_good_snippet(text: str) -> bool:
+    """
+    Reject noisy, symbolic, or ultra-short snippets.
+    """
+    text = text.strip()
+
+    if len(text) < 80:
+        return False
+
+    weird_symbol_ratio = sum(
+        1 for c in text if not c.isalnum() and c not in " \n.,:;!?'-()"
+    ) / max(len(text), 1)
+    if weird_symbol_ratio > 0.20:
+        return False
+
+    words = re.findall(r"[A-Za-z]{2,}", text)
+    if len(words) < 15:
+        return False
+
+    junk_patterns = [
+        r"𝒖:|𝒄:|FC",
+        r"\bA'\b",
+        r"\bco\b",
+        r"^Presentation$",
+        r"\.pptx",
+    ]
+    for pattern in junk_patterns:
+        if re.search(pattern, text):
+            return False
+
+    return True
+
+
 def process_pdf_file(file_path: str, original_name: str) -> Dict:
-    """
-    Process a single PDF file end-to-end and return structured ingestion results.
-    """
     session_id = os.path.splitext(original_name)[0]
 
     try:
@@ -24,15 +55,19 @@ def process_pdf_file(file_path: str, original_name: str) -> Dict:
             overlap=OVERLAP
         )
 
+        raw_snippet_count = len(snippets)
+        snippets = [s for s in snippets if is_good_snippet(s["text"])]
+
         if not snippets:
             return {
                 "file_name": original_name,
                 "session_id": session_id,
                 "status": "failed",
-                "reason": "No snippets created",
+                "reason": "No good snippets remained after filtering",
                 "blocks_extracted": len(blocks),
                 "turns_parsed": len(turns),
                 "snippets_created": 0,
+                "raw_snippets_created": raw_snippet_count,
                 "stored": False,
             }
 
@@ -55,6 +90,7 @@ def process_pdf_file(file_path: str, original_name: str) -> Dict:
             "blocks_extracted": len(blocks),
             "turns_parsed": len(turns),
             "snippets_created": len(snippets),
+            "raw_snippets_created": raw_snippet_count,
             "stored": True,
         }
 
@@ -67,14 +103,12 @@ def process_pdf_file(file_path: str, original_name: str) -> Dict:
             "blocks_extracted": 0,
             "turns_parsed": 0,
             "snippets_created": 0,
+            "raw_snippets_created": 0,
             "stored": False,
         }
 
 
 def summarize_ingestion(results: List[Dict]) -> Dict:
-    """
-    Build a dashboard-style summary from per-file ingestion results.
-    """
     total_files = len(results)
     success_count = sum(1 for r in results if r["status"] == "success")
     failed_count = total_files - success_count

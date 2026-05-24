@@ -4,7 +4,7 @@ from config import USER_X_THRESHOLD
 
 def clean_block_text(text: str) -> str:
     """
-    Remove obvious export noise.
+    Remove obvious export and attachment noise from chat PDFs.
     """
     text = text.strip()
 
@@ -22,8 +22,8 @@ def clean_block_text(text: str) -> str:
 
     exact_noise = {
         "Presentation",
+        "PDF",
     }
-
     if text in exact_noise:
         return ""
 
@@ -38,7 +38,7 @@ def clean_block_text(text: str) -> str:
 
 def merge_consecutive_same_role(turns: list[dict]) -> list[dict]:
     """
-    Merge consecutive blocks that belong to the same speaker.
+    Merge adjacent blocks classified to the same role.
     """
     if not turns:
         return []
@@ -62,7 +62,8 @@ def parse_turns_from_blocks(
     user_x_threshold: float = USER_X_THRESHOLD
 ) -> list[dict]:
     """
-    Infer User vs Assistant using horizontal position.
+    Infer User vs Assistant based on horizontal placement.
+    Assumes user messages are more indented/right-aligned.
     """
     if not blocks:
         return []
