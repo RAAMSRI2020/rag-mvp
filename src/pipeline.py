@@ -3,6 +3,9 @@ import re
 from typing import List, Dict
 
 from config import WINDOW_SIZE, OVERLAP
+from src.intent import analyze_query
+from src.retriever import retrieve_top_k
+from src.generator import generate_answer
 from src.pdf_loader import extract_pdf_blocks
 from src.parser import parse_turns_from_blocks
 from src.chunker import build_snippets
@@ -122,3 +125,10 @@ def summarize_ingestion(results: List[Dict]) -> Dict:
         "total_turns": total_turns,
         "total_snippets": total_snippets,
     }
+
+
+def answer_query(query: str) -> dict:
+    intent = analyze_query(query)
+    docs = retrieve_top_k(query)
+    answer = generate_answer(query, docs)
+    return {"query": query, "intent": intent, "docs": docs, "answer": answer}
