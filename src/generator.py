@@ -1,5 +1,6 @@
 from typing import List, Dict
 import re
+from src.intent import is_small_talk, is_profile_query
 
 
 def clean_text(text: str) -> str:
@@ -11,35 +12,6 @@ def clean_text(text: str) -> str:
 def split_lines(text: str):
     return [line.strip(" -•\t") for line in text.splitlines() if line.strip()]
 
-
-def is_small_talk(query: str) -> bool:
-    q = query.strip().lower()
-    return q in {"hi", "hello", "hey", "yo", "hii", "hey there", "hello there"}
-
-
-def is_profile_query(query: str) -> bool:
-    q = query.strip().lower()
-
-    strong_patterns = [
-        "tell about me",
-        "tell me about me",
-        "what do you know about me",
-        "who am i",
-        "describe me",
-        "summarize me",
-        "say about me",
-    ]
-
-    if any(p in q for p in strong_patterns):
-        return True
-
-    # broader pattern handling
-    has_me = " me" in f" {q} " or "about me" in q
-    has_profile_intent = any(word in q for word in [
-        "tell", "describe", "summarize", "say", "infer", "know"
-    ])
-
-    return has_me and has_profile_intent
 
 
 def classify_result_quality(docs: List[Dict]) -> str:
