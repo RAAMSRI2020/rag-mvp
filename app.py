@@ -2,9 +2,7 @@ import os
 import tempfile
 import streamlit as st
 
-from src.pipeline import process_pdf_file, summarize_ingestion
-from src.retriever import retrieve_top_k
-from src.generator import generate_answer
+from src.pipeline import process_pdf_file, summarize_ingestion, answer_query
 from src.vectordb import close_client
 
 st.set_page_config(page_title="Multi-Session Conversational RAG", layout="wide")
@@ -97,8 +95,9 @@ with tab2:
         with st.chat_message("user"):
             st.markdown(query)
 
-        docs = retrieve_top_k(query, k=3)
-        answer = generate_answer(query, docs)
+        result = answer_query(query)
+        docs = result["docs"]
+        answer = result["answer"]
 
         with st.chat_message("assistant"):
             st.success("Answer generated from retrieved session context")
