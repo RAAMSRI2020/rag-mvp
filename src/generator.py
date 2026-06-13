@@ -118,50 +118,6 @@ def answer_topic_list_query(docs: List[Dict]) -> str:
     return "I found relevant content, but I could not structure it cleanly into topic groups."
 
 
-def answer_burger_query(docs: List[Dict]) -> str:
-    combined = "\n".join(clean_text(doc["text"]) for doc in docs).lower()
-
-    parts = ["From the indexed burger session, you mainly dealt with:\n"]
-
-    if any(x in combined for x in ["hamburger", "cheeseburger", "double cheeseburger"]):
-        parts.append("**1. Hamburger family**")
-        parts.append("- Hamburger")
-        parts.append("- Cheeseburger")
-        parts.append("- Double Cheeseburger")
-        parts.append("- Base formula: mustard + ketchup + pickles + patty")
-        parts.append("")
-
-    if "whopper" in combined:
-        parts.append("**2. Whopper family**")
-        parts.append("- Whopper-style layered build")
-        parts.append("- mayo, lettuce, tomato, onion, ketchup, pickles, patty")
-        parts.append("")
-
-    if any(x in combined for x in ["bbq", "xl", "stacker", "onion rings", "bacon"]):
-        parts.append("**3. BBQ / XL / Stacker family**")
-        parts.append("- BBQ-heavy builds")
-        parts.append("- onion rings, bacon, cheese, double patties")
-        parts.append("")
-
-    if any(x in combined for x in ["sauce position", "veg position", "cheese rule", "bacon rule", "onion rule", "patty identification"]):
-        parts.append("**4. Build rules you were taught**")
-        parts.append("- sauce position rule")
-        parts.append("- veg position rule")
-        parts.append("- cheese rule")
-        parts.append("- bacon rule")
-        parts.append("- onion rule")
-        parts.append("- patty identification")
-        parts.append("")
-
-    if any(x in combined for x in ["rush hour", "memorise", "priority burgers", "build order shortcut", "modifiers"]):
-        parts.append("**5. Speed and memorisation method**")
-        parts.append("- think in burger families, not individual burgers")
-        parts.append("- use base build + modifiers")
-        parts.append("- identify burger family first, then add extras")
-        parts.append("")
-
-    return "\n".join(parts).strip()
-
 
 def generate_general_answer(query: str, docs: List[Dict], quality: str) -> str:
     top_doc = docs[0]
@@ -221,8 +177,5 @@ def generate_answer(query: str, docs: List[Dict]) -> str:
         "during exam revision",
     ]):
         return answer_topic_list_query(docs)
-
-    if any(word in q for word in ["burger", "burgers", "sandwich", "dealt with"]):
-        return answer_burger_query(docs)
 
     return generate_general_answer(query, docs, quality)
