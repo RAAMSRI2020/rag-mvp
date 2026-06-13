@@ -27,40 +27,6 @@ def classify_result_quality(docs: List[Dict]) -> str:
 
 
 
-def extract_headings_and_topics(text: str) -> Dict[str, List[str]]:
-    lines = split_lines(text)
-    sections = {}
-    current_heading = None
-
-    for line in lines:
-        heading_match = re.match(r"^(Block\s+\d+\s+—\s+.+)$", line)
-        if heading_match:
-            current_heading = heading_match.group(1)
-            sections[current_heading] = []
-            continue
-
-        if current_heading and re.match(r"^\d+\.\s+", line):
-            item = re.sub(r"^\d+\.\s+", "", line).strip()
-            sections[current_heading].append(item)
-
-    return sections
-
-
-def answer_topic_list_query(docs: List[Dict]) -> str:
-    combined = "\n".join(clean_text(doc["text"]) for doc in docs)
-    sections = extract_headings_and_topics(combined)
-
-    if sections:
-        parts = ["The topics covered were:\n"]
-        for heading, items in sections.items():
-            parts.append(f"**{heading}**")
-            for item in items:
-                parts.append(f"- {item}")
-            parts.append("")
-        return "\n".join(parts).strip()
-
-    return "I found relevant content, but I could not structure it cleanly into topic groups."
-
 
 
 def generate_general_answer(query: str, docs: List[Dict], quality: str) -> str:
@@ -107,16 +73,5 @@ def generate_answer(query: str, docs: List[Dict]) -> str:
             "I found indexed content, but the matches are too weak to answer reliably. "
             "Try a more specific question, or upload cleaner conversation-session PDFs."
         )
-
-    q = query.strip().lower()
-
-    if any(phrase in q for phrase in [
-        "what are all the topics",
-        "what topics",
-        "topics covered",
-        "covered during exam revision",
-        "during exam revision",
-    ]):
-        return answer_topic_list_query(docs)
 
     return generate_general_answer(query, docs, quality)
