@@ -1,6 +1,6 @@
 from typing import List, Dict
 import re
-from src.intent import is_small_talk, is_profile_query
+from src.intent import is_small_talk
 
 
 def clean_text(text: str) -> str:
@@ -25,62 +25,6 @@ def classify_result_quality(docs: List[Dict]) -> str:
         return "usable"
     return "weak"
 
-
-def generate_profile_answer(docs: List[Dict]) -> str:
-    session_names = sorted({doc["session_id"] for doc in docs})
-    combined = "\n".join(clean_text(doc["text"]) for doc in docs).lower()
-
-    observations = []
-
-    if any(x in combined for x in [
-        "exam", "revision", "lecture", "pca", "svm", "machine learning",
-        "zustand", "react", "hpc", "mapreduce", "spark", "cloud"
-    ]):
-        observations.append(
-            "You seem to be working across technical and academic topics, especially computing, software, and exam-related study material."
-        )
-
-    if any(x in combined for x in [
-        "shortcut", "formula", "memorise", "memory", "template", "step", "base formula", "modifier"
-    ]):
-        observations.append(
-            "You prefer practical learning methods such as shortcuts, formulas, templates, and step-by-step guidance."
-        )
-
-    if any(x in combined for x in [
-        "exam", "asap", "need", "must", "target", "plan"
-    ]):
-        observations.append(
-            "Your questions are usually goal-driven, meaning you ask for help to solve something quickly, prepare effectively, or improve performance."
-        )
-
-    if any(x in combined for x in [
-        "burger", "gmail", "react", "machine learning", "cloud", "mapreduce"
-    ]):
-        observations.append(
-            "You work across both academic/technical topics and practical real-world tasks, rather than focusing on only one domain."
-        )
-
-    if any(x in combined for x in [
-        "shortcut", "must remember", "revision", "summary", "key things", "fastest way"
-    ]):
-        observations.append(
-            "You seem to value concise, usable help more than long theoretical explanations."
-        )
-
-    if not observations:
-        observations.append(
-            "The indexed sessions suggest some recurring interests and tasks, but the current evidence is not strong enough to form a detailed profile."
-        )
-
-    bullets = "\n".join(f"- {item}" for item in observations[:5])
-    sessions = ", ".join(session_names[:6])
-
-    return (
-        "From the indexed sessions, here is what I can reasonably infer about you:\n\n"
-        f"{bullets}\n\n"
-        f"These observations are based on patterns retrieved across these sessions: {sessions}."
-    )
 
 
 def extract_headings_and_topics(text: str) -> Dict[str, List[str]]:
@@ -165,9 +109,6 @@ def generate_answer(query: str, docs: List[Dict]) -> str:
         )
 
     q = query.strip().lower()
-
-    if is_profile_query(query):
-        return generate_profile_answer(docs)
 
     if any(phrase in q for phrase in [
         "what are all the topics",

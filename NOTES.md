@@ -11,3 +11,8 @@
 # Changes in stage 2 :
    It actually what did is called answer_query from intent which co-ordinates the retriever-top-K in retriever and generate_answer in generator all executes in a sequence
    UI got rewired so that here it just displays the string rather than doing the function calls
+
+# Pile 1 changes :
+   Deleted the fake answers for burger and profile answer returned by the old answer
+   These are the overfit functions that fakes the users
+   
