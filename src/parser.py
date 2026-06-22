@@ -30,6 +30,15 @@ def clean_block_text(text: str) -> str:
     if text.lower().endswith(".pptx"):
         return ""
 
+    if len(text) < 120 and re.search(r'\s(?:PDF|Presentation)$', text, re.I):
+        return ""
+
+    if len(text) < 120 and '…' in text:
+        return ""
+
+    if len(text) < 120 and re.search(r'\.(?:pdf|docx)$', text, re.I):
+        return ""
+
     if len(text) <= 1:
         return ""
 

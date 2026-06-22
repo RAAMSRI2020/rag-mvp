@@ -2,7 +2,7 @@ import os
 import re
 from typing import List, Dict
 
-from config import WINDOW_SIZE, OVERLAP
+from config import WINDOW_SIZE, OVERLAP, MAX_UNIT_CHARS
 from src.intent import analyze_query
 from src.retriever import retrieve_top_k
 from src.generator import generate_answer
@@ -55,7 +55,8 @@ def process_pdf_file(file_path: str, original_name: str) -> Dict:
         snippets = build_snippets(
             turns,
             window_size=WINDOW_SIZE,
-            overlap=OVERLAP
+            overlap=OVERLAP,
+            max_chars=MAX_UNIT_CHARS,
         )
 
         raw_snippet_count = len(snippets)

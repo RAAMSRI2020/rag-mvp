@@ -1,6 +1,6 @@
 import os
 
-from config import PDF_DIR, WINDOW_SIZE, OVERLAP
+from config import PDF_DIR, WINDOW_SIZE, OVERLAP, MAX_UNIT_CHARS
 from src.pdf_loader import extract_pdf_blocks
 from src.parser import parse_turns_from_blocks
 from src.chunker import build_snippets
@@ -29,7 +29,8 @@ def ingest_all_pdfs():
         snippets = build_snippets(
             turns,
             window_size=WINDOW_SIZE,
-            overlap=OVERLAP
+            overlap=OVERLAP,
+            max_chars=MAX_UNIT_CHARS,
         )
 
         print(f"Parsed turns: {len(turns)} | Snippets: {len(snippets)}")

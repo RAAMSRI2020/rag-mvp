@@ -15,4 +15,9 @@
 # Pile 1 changes :
    Deleted the fake answers for burger and profile answer returned by the old answer
    These are the overfit functions that fakes the users
+
+# Plie 2 Changes :
+   chip - strip (parser) : headers in files are not recognised anymore
+   Chunker fix (the real unlock) : long turns been splitted into small ones to make detailed snippets
+   clean up - removed the dead code turn id  and maxchars is moved to config.py
    
